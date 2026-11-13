@@ -1,0 +1,67 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  zig:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check .zigversion is on the 0.17 release line
+        id: pin
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < .zigversion)"
+          if ! [[ "$version" =~ ^0\.17\.[0-9]+$ ]]; then
+            echo "::error file=.zigversion::.zigversion is '${version}', expected 0.17.x"
+            exit 1
+          fi
+          min="$(sed -n 's/.*\.minimum_zig_version *= *"\([^"]*\)".*/\1/p' build.zig.zon)"
+          if [ -n "$min" ] && ! [[ "$min" =~ ^0\.17\.[0-9]+$ ]]; then
+            echo "::error file=build.zig.zon::minimum_zig_version is '${min}', expected 0.17.x"
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: ${{ steps.pin.outputs.version }}
+
+      - name: zig fmt --check
+        run: zig fmt --check .
+
+      - name: zig build
+        run: zig build --summary all
+
+      - name: zig build test
+        run: zig build test --summary all
+
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: No pull_request_target workflows
+        run: |
+          if grep -rn 'pull_request_target' .github/workflows; then
+            echo "::error::workflows must not use pull_request_target"
+            exit 1
+          fi
+
+      - name: No path dependencies in build.zig.zon
+        run: |
+          if grep -nE '\.path *=' build.zig.zon; then
+            echo "::error file=build.zig.zon::path dependencies must not be committed"
+            exit 1
+          fi

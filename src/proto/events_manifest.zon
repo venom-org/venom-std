@@ -1,0 +1,265 @@
+.{
+    .name = "events",
+    .summary = "Replay events and follow changes",
+    .grant = .read,
+    .streams = true,
+    .params = .{
+        .{
+            .name = "after",
+            .summary = "after",
+            .type = .{
+                .kind = .string,
+            },
+            .default = "",
+        },
+        .{
+            .name = "types",
+            .summary = "types",
+            .type = .{
+                .kind = .array,
+                .items = .{
+                    .kind = .string,
+                },
+            },
+            .default = .{},
+        },
+        .{
+            .name = "resources",
+            .summary = "resources",
+            .type = .{
+                .kind = .array,
+                .items = .{
+                    .kind = .string,
+                },
+            },
+            .default = .{},
+        },
+        .{
+            .name = "follow",
+            .summary = "follow",
+            .type = .{
+                .kind = .boolean,
+            },
+            .default = true,
+        },
+    },
+    .result = .{
+        .kind = .object,
+        .fields = .{},
+    },
+    .item = .{
+        .kind = .object,
+        .fields = .{
+            .{
+                .name = "seq",
+                .summary = "seq",
+                .type = .{
+                    .kind = .integer,
+                    .min = 0,
+                    .max = 9007199254740991,
+                },
+                .required = true,
+            },
+            .{
+                .name = "ts",
+                .summary = "ts",
+                .type = .{
+                    .kind = .string,
+                },
+                .required = true,
+            },
+            .{
+                .name = "source",
+                .summary = "source",
+                .type = .{
+                    .kind = .string,
+                },
+                .required = true,
+            },
+            .{
+                .name = "type",
+                .summary = "type",
+                .type = .{
+                    .kind = .string,
+                },
+                .required = true,
+            },
+            .{
+                .name = "data",
+                .summary = "data",
+                .type = .{
+                    .kind = .object,
+                    .fields = .{
+                        .{
+                            .name = "pane",
+                            .summary = "pane",
+                            .type = .{
+                                .kind = .string,
+                            },
+                        },
+                        .{
+                            .name = "session",
+                            .summary = "session",
+                            .type = .{
+                                .kind = .string,
+                            },
+                        },
+                        .{
+                            .name = "title",
+                            .summary = "title",
+                            .type = .{
+                                .kind = .string,
+                            },
+                        },
+                        .{
+                            .name = "command",
+                            .summary = "command",
+                            .type = .{
+                                .kind = .string,
+                            },
+                        },
+                        .{
+                            .name = "cmdline",
+                            .summary = "cmdline",
+                            .type = .{
+                                .kind = .string,
+                            },
+                        },
+                        .{
+                            .name = "reason",
+                            .summary = "reason",
+                            .type = .{
+                                .kind = .string,
+                            },
+                        },
+                        .{
+                            .name = "restart_required",
+                            .summary = "restart required",
+                            .type = .{
+                                .kind = .boolean,
+                            },
+                        },
+                        .{
+                            .name = "exit_code",
+                            .summary = "exit code",
+                            .type = .{
+                                .kind = .integer,
+                                .min = 0,
+                                .max = 255,
+                            },
+                        },
+                        .{
+                            .name = "records",
+                            .summary = "records",
+                            .type = .{
+                                .kind = .array,
+                                .items = .{
+                                    .kind = .object,
+                                    .fields = .{
+                                        .{
+                                            .name = "id",
+                                            .summary = "id",
+                                            .type = .{
+                                                .kind = .string,
+                                            },
+                                            .required = true,
+                                        },
+                                        .{
+                                            .name = "state",
+                                            .summary = "state",
+                                            .type = .{
+                                                .kind = .string,
+                                            },
+                                            .required = true,
+                                        },
+                                        .{
+                                            .name = "kind",
+                                            .summary = "kind",
+                                            .type = .{
+                                                .kind = .string,
+                                            },
+                                        },
+                                        .{
+                                            .name = "app",
+                                            .summary = "app",
+                                            .type = .{
+                                                .kind = .string,
+                                            },
+                                        },
+                                        .{
+                                            .name = "title",
+                                            .summary = "title",
+                                            .type = .{
+                                                .kind = .string,
+                                            },
+                                        },
+                                        .{
+                                            .name = "msg",
+                                            .summary = "msg",
+                                            .type = .{
+                                                .kind = .string,
+                                            },
+                                        },
+                                        .{
+                                            .name = "progress",
+                                            .summary = "progress",
+                                            .type = .{
+                                                .kind = .integer,
+                                                .min = 0,
+                                                .max = 100,
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                        .{
+                            .name = "entities",
+                            .summary = "entities",
+                            .type = .{
+                                .kind = .array,
+                                .items = .{
+                                    .kind = .object,
+                                    .fields = .{
+                                        .{
+                                            .name = "resource",
+                                            .summary = "resource",
+                                            .type = .{
+                                                .kind = .string,
+                                            },
+                                            .required = true,
+                                        },
+                                        .{
+                                            .name = "entity_type",
+                                            .summary = "entity type",
+                                            .type = .{
+                                                .kind = .string,
+                                            },
+                                            .required = true,
+                                        },
+                                        .{
+                                            .name = "content",
+                                            .summary = "content",
+                                            .type = .{
+                                                .kind = .string,
+                                            },
+                                            .required = true,
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                        .{
+                            .name = "complete",
+                            .summary = "complete",
+                            .type = .{
+                                .kind = .boolean,
+                            },
+                        },
+                    },
+                },
+                .required = true,
+            },
+        },
+    },
+}
