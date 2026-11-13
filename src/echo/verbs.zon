@@ -1,0 +1,229 @@
+.{
+    .format = 1,
+
+    .tool = "venom-echo",
+
+    .summary = "A toy daemon for protocol conformance",
+
+    .verbs = .{
+        .{
+            .name = "echo",
+
+            .summary = "Return the supplied text",
+
+            .params = .{
+                .{
+                    .name = "text",
+                    .summary = "Text to return",
+                    .type = .{
+                        .kind = .string,
+                    },
+                    .required = true,
+                },
+
+                .{
+                    .name = "style",
+                    .summary = "Output casing",
+                    .type = .{
+                        .kind = .string,
+                        .choices = .{
+                            "plain",
+                            "upper",
+                        },
+                    },
+                    .default = "plain",
+                },
+            },
+
+            .result = .{
+                .kind = .object,
+                .fields = .{
+                    .{
+                        .name = "text",
+                        .summary = "Returned text",
+                        .type = .{
+                            .kind = .string,
+                        },
+                        .required = true,
+                    },
+                },
+            },
+
+            .grant = .read,
+
+            .examples = .{
+                .{
+                    .params = .{
+                        .text = "hi",
+                    },
+                    .result = .{
+                        .text = "hi",
+                    },
+                },
+            },
+        },
+        .{
+            .name = "counter.inc",
+            .summary = "Add to the in-memory counter",
+            .params = .{
+                .{
+                    .name = "by",
+                    .summary = "Amount to add",
+                    .type = .{
+                        .kind = .integer,
+                        .min = 1,
+                        .max = 1000000,
+                    },
+                    .default = 1,
+                },
+            },
+            .result = .{
+                .kind = .object,
+                .fields = .{
+                    .{
+                        .name = "value",
+                        .summary = "Counter value after the increment",
+                        .type = .{
+                            .kind = .integer,
+                            .min = 0,
+                            .max = 9007199254740991,
+                        },
+                        .required = true,
+                    },
+                },
+            },
+            .errors = .{
+                .{
+                    .code = "conflict.counter_overflow",
+                    .summary = "The increment would exceed the largest exact JSON integer",
+                },
+            },
+            .grant = .write,
+            .examples = .{
+                .{
+                    .params = .{
+                        .by = 2,
+                    },
+                    .result = .{
+                        .value = 2,
+                    },
+                },
+            },
+        },
+
+        .{
+            .name = "counter.get",
+            .summary = "Read the in-memory counter",
+            .result = .{
+                .kind = .object,
+                .fields = .{
+                    .{
+                        .name = "value",
+                        .summary = "Current counter value",
+                        .type = .{
+                            .kind = .integer,
+                            .min = 0,
+                            .max = 9007199254740991,
+                        },
+                        .required = true,
+                    },
+                },
+            },
+            .grant = .read,
+            .examples = .{
+                .{
+                    .params = .{},
+                    .result = .{
+                        .value = 0,
+                    },
+                },
+            },
+        },
+
+        .{
+            .name = "sleep",
+            .summary = "Stream one tick per interval, then finish",
+            .params = .{
+                .{
+                    .name = "ms",
+                    .summary = "Milliseconds between ticks",
+                    .type = .{
+                        .kind = .integer,
+                        .min = 0,
+                        .max = 60000,
+                    },
+                    .required = true,
+                },
+                .{
+                    .name = "ticks",
+                    .summary = "Number of ticks to stream",
+                    .type = .{
+                        .kind = .integer,
+                        .min = 1,
+                        .max = 1000,
+                    },
+                    .default = 1,
+                },
+                .{
+                    .name = "fail_at",
+                    .summary = "End with failed.sleep_aborted instead of this tick (0 never fails)",
+                    .type = .{
+                        .kind = .integer,
+                        .min = 0,
+                        .max = 1000,
+                    },
+                    .default = 0,
+                },
+            },
+            .result = .{
+                .kind = .object,
+                .fields = .{
+                    .{
+                        .name = "ticks",
+                        .summary = "Ticks streamed",
+                        .type = .{
+                            .kind = .integer,
+                            .min = 0,
+                            .max = 1000,
+                        },
+                        .required = true,
+                    },
+                },
+            },
+            .streams = true,
+            .item = .{
+                .kind = .object,
+                .fields = .{
+                    .{
+                        .name = "tick",
+                        .summary = "Tick number, starting at 1",
+                        .type = .{
+                            .kind = .integer,
+                            .min = 1,
+                            .max = 1000,
+                        },
+                        .required = true,
+                    },
+                },
+            },
+            .errors = .{
+                .{
+                    .code = "failed.sleep_aborted",
+                    .summary = "The stream was told to fail at a tick (conformance fixture)",
+                },
+            },
+            .grant = .read,
+            .examples = .{
+                .{
+                    .params = .{
+                        .ms = 10,
+                        .ticks = 2,
+                    },
+                    .result = .{
+                        .ticks = 2,
+                    },
+                },
+            },
+        },
+    },
+}

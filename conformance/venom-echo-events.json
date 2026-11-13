@@ -1,0 +1,72 @@
+{
+  "tool": "venom-echo",
+  "read": {
+    "args": [
+      "echo",
+      "--text=hi"
+    ],
+    "result": {
+      "text": "hi"
+    },
+    "mcp": {
+      "name": "echo",
+      "arguments": {
+        "text": "hi"
+      }
+    }
+  },
+  "usage_error": {
+    "args": [
+      "echo",
+      "--style=loud",
+      "--text=hi"
+    ],
+    "code": "invalid_params.enum"
+  },
+  "mutation": {
+    "args": [
+      "counter",
+      "inc"
+    ],
+    "result": {
+      "value": 1
+    },
+    "mcp": {
+      "name": "counter_dinc",
+      "arguments": {}
+    },
+    "observe": {
+      "args": [
+        "counter",
+        "get"
+      ],
+      "before": {
+        "value": 0
+      },
+      "after": {
+        "value": 1
+      }
+    }
+  },
+  "stream": {
+    "kind": "events"
+  },
+  "config": {
+    "key": "appearance.prefix",
+    "default": "\"\"",
+    "value": "\"conf:\"",
+    "observe": {
+      "args": [
+        "echo",
+        "--text=x"
+      ],
+      "before": {
+        "text": "x"
+      },
+      "after": {
+        "text": "conf:x"
+      }
+    },
+    "secret_key": "api_token"
+  }
+}
