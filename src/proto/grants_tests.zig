@@ -14,7 +14,7 @@ fn issue(r: *g.Registry, caller: g.Identity, gs: []const g.Grant, now: i64) !g.I
     return issued.principal;
 }
 
-test "GR-01/02 CF-01: exact rights, unknown is read-only, policy reload applies live" {
+test "exact rights, unknown is read-only, policy reload applies live" {
     var r = try g.Registry.init(a, "test", .{});
     defer r.deinit();
     const now = g.nowSeconds();
@@ -31,7 +31,7 @@ test "GR-01/02 CF-01: exact rights, unknown is read-only, policy reload applies 
     try t.expect(r.allows(.{}, .none, null, now));
 }
 
-test "ID-06/07/08 GR-05/06/07: tokens, caps, attenuation, expiry and cascade" {
+test "tokens, caps, attenuation, expiry and cascade" {
     var r = try g.Registry.init(a, "test", .{});
     defer r.deinit();
     const now = g.nowSeconds();
@@ -90,7 +90,7 @@ const Tree = struct {
         return if (std.mem.eql(u8, resource.id, "p1")) self.creator else null;
     }
 };
-test "GR-03/04/08: containment, self, missing resources, principal visibility, approval" {
+test "containment, self, missing resources, principal visibility, approval" {
     var r = try g.Registry.init(a, "test", .{});
     defer r.deinit();
     const now = g.nowSeconds();
@@ -114,7 +114,7 @@ test "GR-03/04/08: containment, self, missing resources, principal visibility, a
     try t.expect(!g.pathContains("/proj", "/project2"));
 }
 
-test "ID-02/03/05/07: ancestry starttime, nearest binding, outside and bound token theft" {
+test "ancestry starttime, nearest binding, outside and bound token theft" {
     var r = try g.Registry.init(a, "test", .{});
     defer r.deinit();
     const now = g.nowSeconds();
@@ -137,7 +137,7 @@ test "ID-02/03/05/07: ancestry starttime, nearest binding, outside and bound tok
     try t.expectEqual(g.Floor.orphan, r.resolve(failed, c.getpid(), now).floor);
 }
 
-test "AU-01/02: audit is secret-free, rotates, and failures do not alter authorization" {
+test "audit is secret-free, rotates, and failures do not alter authorization" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
     const dir = try tmp.dir.realPathFileAlloc(std.testing.io, ".", a);
@@ -187,7 +187,7 @@ fn readPacket(fd: c.fd_t) !PidPacket {
     if (c.read(fd, @ptrCast(&packet), @sizeOf(PidPacket)) != @sizeOf(PidPacket)) return error.TestFailed;
     return packet;
 }
-test "ID-02/04: real root, child, grandchild, nested binding and subreaper orphan" {
+test "real root, child, grandchild, nested binding and subreaper orphan" {
     if (!os.is_linux) return error.SkipZigTest;
     try proc.subreaper();
     defer _ = prctl(36, @as(c_ulong, 0), @as(c_ulong, 0), @as(c_ulong, 0), @as(c_ulong, 0));
@@ -257,7 +257,7 @@ test "ID-02/04: real root, child, grandchild, nested binding and subreaper orpha
     try t.expect(!r.connectionLive(cached, now));
 }
 
-test "GR-03: canonical path, symlink escape, dot-dot, new destination and component boundary" {
+test "canonical path, symlink escape, dot-dot, new destination and component boundary" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
     const dir = try tmp.dir.realPathFileAlloc(std.testing.io, ".", a);
@@ -294,7 +294,7 @@ test "GR-03: canonical path, symlink escape, dot-dot, new destination and compon
     try t.expectError(error.Denied, p.authorizePath(a, &r, identity, .files, dangling_child, now));
 }
 
-test "GR-05: delegation preserves a connection's independent floor cap" {
+test "delegation preserves a connection's independent floor cap" {
     var r = try g.Registry.init(a, "test", .{});
     defer r.deinit();
     const now = g.nowSeconds();
@@ -313,7 +313,7 @@ test "GR-05: delegation preserves a connection's independent floor cap" {
     try t.expect(!r.connectionLive(outside, now));
 }
 
-test "GR-05: a concrete containing scope cannot delegate a wildcard selector" {
+test "a concrete containing scope cannot delegate a wildcard selector" {
     var r = try g.Registry.init(a, "test", .{});
     defer r.deinit();
     var tree: Tree = .{ .creator = g.owner };

@@ -440,7 +440,7 @@ test "allocation failures release descriptors, locks and handshake buffers" {
     try std.testing.checkAllAllocationFailures(a, allocationLifecycle, .{f});
 }
 
-test "ID-06/08: owner file lifecycle, fresh secrets, binary and NDJSON token failure closes" {
+test "owner file lifecycle, fresh secrets, binary and NDJSON token failure closes" {
     var f = try Fixture.init();
     defer f.deinit();
     var server = try p.Server.init(a, f.options(), null);
@@ -477,7 +477,7 @@ test "ID-06/08: owner file lifecycle, fresh secrets, binary and NDJSON token fai
     try std.testing.expect(!std.mem.eql(u8, original[0..@intCast(n)], fresh[0..@intCast(m)]));
 }
 
-test "AU-02: unavailable audit leaves rights unchanged and doctor reports failure" {
+test "unavailable audit leaves rights unchanged and doctor reports failure" {
     var f = try Fixture.init();
     defer f.deinit();
     var opts = f.options();
