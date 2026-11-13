@@ -586,7 +586,7 @@ test "dispatch: fuzz NDJSON requests" {
     try t.fuzz({}, fuzzOne, .{});
 }
 
-test "GR-01/06: deny before handler, explicit allow, none and live stream revocation" {
+test "deny before handler, explicit allow, none and live stream revocation" {
     var v: Verbs = .{};
     defer v.deinit();
     var d = try v.dispatcher(.{});

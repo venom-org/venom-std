@@ -54,7 +54,7 @@ jobs:
 
       - name: No pull_request_target workflows
         run: |
-          if grep -rn 'pull_request_target' .github/workflows; then
+          if grep -rnE '^[[:space:]]*(-[[:space:]]*)?pull_request_target[[:space:]]*(:|$)|^on:.*pull_request_target' .github/workflows; then
             echo "::error::workflows must not use pull_request_target"
             exit 1
           fi
