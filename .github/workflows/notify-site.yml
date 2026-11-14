@@ -1,0 +1,22 @@
+# Asks the website's build to rebuild https://venom.tools when the published
+# docs change. The site publishes README.md, or docs/site/ once it exists, so
+# other pushes skip this.
+name: notify-site
+on:
+  push:
+    branches: [main]
+    paths: ['README.md', 'docs/site/**']
+
+permissions: {}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          gh api repos/venom-org/venom-site/dispatches \
+            -f event_type=docs-updated \
+            -f "client_payload[repo]=${{ github.repository }}" \
+            -f "client_payload[sha]=${{ github.sha }}"
+        env:
+          GH_TOKEN: ${{ secrets.VENOM_SITE_DISPATCH_TOKEN }}
