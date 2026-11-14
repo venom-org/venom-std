@@ -15,6 +15,37 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 2
+
+      # A change that only touches Markdown, docs/ or LICENSE skips Zig setup,
+      # fmt, build and test. The job still runs and passes, so the required
+      # `zig` check reports. Any other file, or a diff base we can't find,
+      # runs everything.
+      - name: Detect docs-only change
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          base=""
+          if [ "$EVENT" = pull_request ]; then
+            # The checked-out merge commit's first parent is the base branch tip.
+            base="HEAD^1"
+          elif [ -n "$BEFORE" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ] \
+            && git fetch --no-tags --depth=1 origin "$BEFORE"; then
+            base="$BEFORE"
+          fi
+          code=true
+          if [ -n "$base" ] && files="$(git diff --name-only "$base" HEAD)" && [ -n "$files" ]; then
+            other="$(grep -vE '(^|/)[^/]+\.md$|^docs/|^LICENSE$' <<<"$files" || true)"
+            if [ -z "$other" ]; then
+              code=false
+              echo "Docs-only change; skipping Zig setup, fmt, build and test:"
+              echo "$files"
+            fi
+          fi
+          echo "code=${code}" >> "$GITHUB_OUTPUT"
 
       - name: Check .zigversion is on the 0.17 release line
         id: pin
@@ -32,17 +63,21 @@ jobs:
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
-      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+      - if: steps.changes.outputs.code == 'true'
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: ${{ steps.pin.outputs.version }}
 
       - name: zig fmt --check
+        if: steps.changes.outputs.code == 'true'
         run: zig fmt --check .
 
       - name: zig build
+        if: steps.changes.outputs.code == 'true'
         run: zig build --summary all
 
       - name: zig build test
+        if: steps.changes.outputs.code == 'true'
         run: zig build test --summary all
 
   policy:
