@@ -168,3 +168,34 @@ test "bootstrap: missing daemon names the absolute socket; doctor's fix starts i
         if (case.fix) |want| try t.expectEqualStrings(want, data.object.get("fix").?.string) else try t.expect(data.object.get("fix") == null);
     }
 }
+test "bootstrap: a product sets doctor's no-daemon fix and message" {
+    var out: std.Io.Writer.Allocating = .init(t.allocator);
+    defer out.deinit();
+    var err: std.Io.Writer.Allocating = .init(t.allocator);
+    defer err.deinit();
+    const message = "No daemon at the selected socket; a human starts it";
+    const options: cli.RunOptions = .{ .stdout = &out.writer, .stderr = &err.writer, .no_daemon = .{ .fix = "startup-test doctor --json", .message = message } };
+    const long = "/tmp/" ++ @as([120]u8, @splat('x')) ++ ".sock";
+    for ([_]struct { argv: []const []const u8, code: []const u8, message: []const u8, fix: ?[]const u8 }{
+        .{ .argv = &.{ "doctor", "--socket=/tmp/venom-no-such-dir/t.sock", "--json" }, .code = "unavailable.not_running", .message = message, .fix = "startup-test doctor --json" },
+        // Other verbs keep the default message and no fix.
+        .{ .argv = &.{ "ping", "--socket=/tmp/venom-no-such-dir/t.sock", "--json" }, .code = "unavailable.not_running", .message = "No daemon at the selected socket", .fix = null },
+        // Other path failures keep their diagnostic.
+        .{ .argv = &.{ "doctor", "--socket=" ++ long, "--json" }, .code = "unavailable.path_too_long", .message = "PathTooLong", .fix = "ls -ld -- \"${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}\"" },
+    }) |case| {
+        out.clearRetainingCapacity();
+        try t.expectEqual(@as(u8, 6), try G.run(t.allocator, case.argv, options));
+        const parsed = try std.json.parseFromSlice(std.json.Value, t.allocator, out.written(), .{});
+        defer parsed.deinit();
+        const e = parsed.value.object.get("error").?.object;
+        try t.expectEqualStrings(case.code, e.get("code").?.string);
+        try t.expectEqualStrings(case.message, e.get("message").?.string);
+        const data = e.get("data").?;
+        if (case.fix) |want| try t.expectEqualStrings(want, data.object.get("fix").?.string) else try t.expect(data == .null or data.object.get("fix") == null);
+        if (std.mem.eql(u8, case.code, "unavailable.not_running")) try t.expectEqualStrings("/tmp/venom-no-such-dir/t.sock", data.object.get("socket").?.string);
+    }
+    // Without --json the message goes to stderr.
+    err.clearRetainingCapacity();
+    try t.expectEqual(@as(u8, 6), try G.run(t.allocator, &.{ "doctor", "--socket=/tmp/venom-no-such-dir/t.sock" }, options));
+    try t.expectEqualStrings(message ++ "\n", err.written());
+}

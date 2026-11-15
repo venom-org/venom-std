@@ -170,6 +170,18 @@ pub fn build(b: *std.Build) void {
     canary_conf.expectExitCode(1);
     b.step("test-conformance-canary", "Check that the conformance suite fails a nonconforming profile").dependOn(&canary_conf.step);
     test_step.dependOn(&canary_conf.step);
+    // Canary: the suite must check doctor's no-daemon fix and message against
+    // the profile; venom-echo keeps the defaults, so an override must fail.
+    const canary_no_daemon = b.addSystemCommand(&.{"python3"});
+    canary_no_daemon.addFileArg(b.path("conformance/agent_contract.py"));
+    canary_no_daemon.addArtifactArg(echo);
+    canary_no_daemon.addFileArg(b.path("test/conformance/no-daemon-override.json"));
+    canary_no_daemon.setName("conformance no-daemon canary");
+    canary_no_daemon.has_side_effects = true;
+    canary_no_daemon.expectStdOutMatch("not ok doctor");
+    canary_no_daemon.expectExitCode(1);
+    b.step("test-conformance-no-daemon", "Check that the conformance suite checks the profile's no-daemon doctor values").dependOn(&canary_no_daemon.step);
+    test_step.dependOn(&canary_no_daemon.step);
 
     // Leak canary: a test that leaks must fail. This guards the guarantee that
     // `std.testing.allocator` turns leaks into test failures.

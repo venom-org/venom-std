@@ -139,6 +139,16 @@ pub const Options = struct {
     stdin: std.c.fd_t = 0,
     /// Descriptor underlying stdout, used for interactive terminal checks.
     stdout_fd: std.c.fd_t = 1,
+    /// What `doctor` reports when no daemon answers.
+    no_daemon: NoDaemon = .{},
+};
+/// `doctor`'s `unavailable.not_running` error. `fix` is a runnable command
+/// (`data.fix`); `message` is the human advice. Null keeps the defaults:
+/// fix `<tool> serve`, message "No daemon at the selected socket". A product
+/// whose daemon agents must never start sets a fix that starts nothing.
+pub const NoDaemon = struct {
+    fix: ?[]const u8 = null,
+    message: ?[]const u8 = null,
 };
 
 /// Run the generated CLI; preserve typed local registration until it has been
@@ -529,18 +539,20 @@ const not_running = "unavailable.not_running";
 fn transportFailure(comptime G: type, a: std.mem.Allocator, options: Options, call: cli.Invocation, path: proto.SocketOptions, err: anyerror) !u8 {
     const code = transportCode(err);
     var data = try transportData(a, G.schema.tool, path, err);
+    var message = transportMessage(err);
     // A failed doctor connection is still a transport error, with a runnable
-    // fix rather than a fabricated doctor report. A missing
-    // daemon is fixed by starting it; other path errors get a diagnostic.
+    // fix rather than a fabricated doctor report. A missing daemon gets the
+    // product's fix and message (by default, start it); other path errors
+    // get a diagnostic.
     if (std.mem.eql(u8, call.name, "doctor")) {
         if (data == null) data = .{ .object = .empty };
-        const fix = if (std.mem.eql(u8, code, not_running))
-            try std.fmt.allocPrint(a, "{s} serve", .{G.schema.tool})
-        else
-            "ls -ld -- \"${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}\"";
+        const fix = if (std.mem.eql(u8, code, not_running)) fix: {
+            if (options.no_daemon.message) |m| message = m;
+            break :fix options.no_daemon.fix orelse try std.fmt.allocPrint(a, "{s} serve", .{G.schema.tool});
+        } else "ls -ld -- \"${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}\"";
         try data.?.object.put(a, "fix", .{ .string = fix });
     }
-    return failure(a, options, call.json, code, transportMessage(err), data);
+    return failure(a, options, call.json, code, message, data);
 }
 
 fn nowMs() i64 {
