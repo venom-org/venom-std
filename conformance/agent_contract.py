@@ -38,6 +38,11 @@ venom-echo.json for a complete example):
     config      {"key", "value", "observe": {"args", "before", "after"},
                  "secret_key" (optional)}
                 a hot-reloadable key whose effect `observe` shows
+    no_daemon   {"fix": "...", "message": "..."} (optional) what `doctor` reports
+                with no daemon (`unavailable.not_running`): the runnable
+                `data.fix` and the `message`. Each defaults to the shared
+                runtime's: fix "<tool> serve", message "No daemon at the
+                selected socket" (venom: a fix that starts nothing)
     defaults    ZON text (optional) written to $XDG_CONFIG_DIRS/<tool>/defaults.zon
                 before the daemon starts, for a product whose shipped default
                 is outside what the contract covers (venomx: grants.isolation)
@@ -606,10 +611,16 @@ def check_doctor(p):
             p.config_file.write_bytes(saved)
     assert p.json("doctor")["status"] == 0
     # No daemon: the usual error with a runnable fix, never a fake report.
-    # A missing daemon's fix starts it; the data names the socket.
+    # The fix and message are the product's (by default the fix starts the
+    # daemon); the data names the socket.
+    no_daemon = p.p.get("no_daemon", {})
+    fix = no_daemon.get("fix", f"{p.tool} serve")
+    message = no_daemon.get("message", "No daemon at the selected socket")
     none = str(p.root / "none.sock")
     err = p.error("doctor", "--socket", none, code=6, socket=False)
-    assert err["code"] == "unavailable.not_running" and err["data"] == {"socket": none, "fix": f"{p.tool} serve"}, err
+    assert err["code"] == "unavailable.not_running" and err["data"] == {"socket": none, "fix": fix}, err
+    assert err["message"] == message, err
+    assert subprocess.run(["sh", "-n", "-c", fix], capture_output=True).returncode == 0, err
     # Other path failures keep a runnable diagnostic fix.
     long = str(p.root / ("x" * 120 + ".sock"))
     err = p.error("doctor", "--socket", long, code=6, socket=False)
