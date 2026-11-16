@@ -111,34 +111,36 @@ pub fn subreaper() !void {
     if (os.is_linux and prctl(36, @as(c_ulong, 1), @as(c_ulong, 0), @as(c_ulong, 0), @as(c_ulong, 0)) != 0) return error.SubreaperFailed;
 }
 extern "c" fn prctl(c_int, ...) c_int;
-// Darwin's proc_bsdinfo ABI (libproc.h).
-const BsdInfo = extern struct {
-    flags: u32,
-    status: u32,
-    xstatus: u32,
-    pid: u32,
-    ppid: u32,
-    uid: u32,
-    gid: u32,
-    ruid: u32,
-    rgid: u32,
-    svuid: u32,
-    svgid: u32,
-    rfu: u32,
-    comm: [16]u8,
-    name: [32]u8,
-    nfiles: u32,
-    pgid: u32,
-    pjobc: u32,
-    e_tdev: u32,
-    e_tpgid: u32,
-    nice: i32,
-    start_sec: u64,
-    start_usec: u64,
+// Darwin's `struct kinfo_proc` (sys/sysctl.h), as sysctl KERN_PROC_PID
+// returns it on 64-bit macOS: only the fields read here, at their offsets.
+const KinfoProc = extern struct {
+    /// kp_proc.p_starttime (struct timeval).
+    start_sec: i64,
+    start_usec: i32,
+    _pad0: [28]u8,
+    /// kp_proc.p_pid.
+    pid: i32,
+    _pad1: [516]u8,
+    /// kp_eproc.e_ppid.
+    ppid: i32,
+    _pad2: [84]u8,
 };
-extern "c" fn proc_pidinfo(c_int, c_int, u64, *anyopaque, c_int) c_int;
+comptime {
+    std.debug.assert(@sizeOf(KinfoProc) == 648);
+    std.debug.assert(@offsetOf(KinfoProc, "start_usec") == 8);
+    std.debug.assert(@offsetOf(KinfoProc, "pid") == 40);
+    std.debug.assert(@offsetOf(KinfoProc, "ppid") == 560);
+}
+// sysctl KERN_PROC_PID, unlike proc_pidinfo(PROC_PIDTBSDINFO), works on
+// processes of other users (login, launchd), which every ancestor chain
+// on macOS passes through.
 fn darwinStat(pid: c.pid_t) !Stat {
-    var info: BsdInfo = undefined;
-    if (proc_pidinfo(pid, 3, 0, &info, @sizeOf(BsdInfo)) != @sizeOf(BsdInfo)) return error.ProcessGone;
-    return .{ .ref = .{ .pid = pid, .start = info.start_sec * 1_000_000 + info.start_usec }, .parent = @intCast(info.ppid) };
+    const mib = [_]c_int{ 1, 14, 1, pid }; // CTL_KERN, KERN_PROC, KERN_PROC_PID
+    var info: KinfoProc = undefined;
+    var len: usize = @sizeOf(KinfoProc);
+    // A missing PID succeeds with zero length.
+    if (c.sysctl(&mib, mib.len, &info, &len, null, 0) != 0 or len != @sizeOf(KinfoProc) or info.pid != pid) return error.ProcessGone;
+    if (info.start_sec < 0 or info.start_usec < 0 or info.ppid < 0) return error.ProcessGone;
+    const start = @as(u64, @intCast(info.start_sec)) * 1_000_000 + @as(u64, @intCast(info.start_usec));
+    return .{ .ref = .{ .pid = pid, .start = start }, .parent = info.ppid };
 }
