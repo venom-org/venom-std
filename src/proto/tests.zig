@@ -587,6 +587,53 @@ test "a daemon with the subreaper is marked while it runs" {
     server.deinit();
     try std.testing.expectError(error.FileNotFound, os.statAt(c.AT.FDCWD, marker, c.AT.SYMLINK_NOFOLLOW));
 }
+test "a daemon with the subreaper can start unmarked and toggle its marker" {
+    if (!os.is_linux) return error.SkipZigTest;
+    var f = try Fixture.init();
+    defer f.deinit();
+    defer _ = prctl(36, @as(c_ulong, 0), @as(c_ulong, 0), @as(c_ulong, 0), @as(c_ulong, 0));
+    const me = try p.process.stat(c.getpid());
+    const marker = try std.fmt.allocPrintSentinel(a, "{s}/manager-{d}-{d}", .{ f.parent, me.ref.pid, me.ref.start }, 0);
+    defer a.free(marker);
+    var options = f.options();
+    options.subreaper = true;
+    options.manager_marker = false;
+    var server = try p.Server.init(a, options, null);
+    var running = true;
+    defer if (running) server.deinit();
+    try std.testing.expectError(error.FileNotFound, os.statAt(c.AT.FDCWD, marker, c.AT.SYMLINK_NOFOLLOW));
+    try std.testing.expect(server.grantDiagnostics().subreaper);
+    try std.testing.expect(!server.grantDiagnostics().manager_marker);
+    try server.setManagerMarker(true);
+    const st = try os.statAt(c.AT.FDCWD, marker, c.AT.SYMLINK_NOFOLLOW);
+    try std.testing.expectEqual(@as(u32, 0o600), st.mode & 0o777);
+    try std.testing.expect(server.grantDiagnostics().manager_marker);
+    // Idempotent both ways.
+    try server.setManagerMarker(true);
+    try server.setManagerMarker(false);
+    try server.setManagerMarker(false);
+    try std.testing.expectError(error.FileNotFound, os.statAt(c.AT.FDCWD, marker, c.AT.SYMLINK_NOFOLLOW));
+    try server.setManagerMarker(true);
+    running = false;
+    server.deinit();
+    try std.testing.expectError(error.FileNotFound, os.statAt(c.AT.FDCWD, marker, c.AT.SYMLINK_NOFOLLOW));
+}
+
+test "a marker on a daemon without the subreaper is kept until deinit" {
+    if (!os.is_linux) return error.SkipZigTest;
+    var f = try Fixture.init();
+    defer f.deinit();
+    const me = try p.process.stat(c.getpid());
+    const marker = try std.fmt.allocPrintSentinel(a, "{s}/manager-{d}-{d}", .{ f.parent, me.ref.pid, me.ref.start }, 0);
+    defer a.free(marker);
+    var server = try p.Server.init(a, f.options(), null);
+    try std.testing.expectError(error.FileNotFound, os.statAt(c.AT.FDCWD, marker, c.AT.SYMLINK_NOFOLLOW));
+    try server.setManagerMarker(true);
+    _ = try os.statAt(c.AT.FDCWD, marker, c.AT.SYMLINK_NOFOLLOW);
+    server.deinit();
+    try std.testing.expectError(error.FileNotFound, os.statAt(c.AT.FDCWD, marker, c.AT.SYMLINK_NOFOLLOW));
+}
+
 extern "c" fn prctl(c_int, ...) c_int;
 extern "c" fn fork() c.pid_t;
 extern "c" fn _exit(c_int) noreturn;

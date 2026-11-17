@@ -61,6 +61,11 @@ pub const Options = struct {
     /// serve. It also marks the daemon as a manager, so a
     /// supervisor of daemons calls `process.subreaper()` itself instead.
     subreaper: bool = false,
+    /// Whether the daemon starts marked as a manager next to its socket. Null
+    /// follows `subreaper`. A daemon that trusts every process of its user
+    /// keeps the subreaper but is no manager; `setManagerMarker` changes this
+    /// while it runs.
+    manager_marker: ?bool = null,
     /// Audit config is exposed here until cfg merges the shared grants section.
     audit_path: ?[]const u8 = null,
     audit_max_bytes: usize = 16 * 1024 * 1024,
@@ -90,6 +95,8 @@ pub const Server = struct {
     owns_audit: bool,
     saved_observer: ?grants.Observer,
     saved_downstream: ?grants.Observer,
+    /// Whether this daemon's manager marker is in place.
+    marked: bool = false,
 
     pub fn init(gpa: std.mem.Allocator, options: Options, handler: ?Handler) !Server {
         try hello.validate(options.hello);
@@ -124,12 +131,11 @@ pub const Server = struct {
             gpa.destroy(registry);
         };
         if (!std.mem.eql(u8, registry.tool, options.hello.identity.name)) return error.InvalidOptions;
-        if (options.subreaper) {
-            try proc.subreaper();
-            // Before the owner file exists, so no peer can use it unchecked.
-            try managers.mark(dir);
-        }
-        errdefer if (options.subreaper) managers.unmark(dir);
+        if (options.subreaper) try proc.subreaper();
+        const marked = options.manager_marker orelse options.subreaper;
+        // Before the owner file exists, so no peer can use it unchecked.
+        if (marked) try managers.mark(dir);
+        errdefer if (marked) managers.unmark(dir);
         const base = if (std.mem.endsWith(u8, path, ".sock")) path[0 .. path.len - 5] else path;
         const owner_path = try std.fmt.allocPrintSentinel(gpa, "{s}.owner", .{base}, 0);
         errdefer gpa.free(owner_path);
@@ -195,7 +201,7 @@ pub const Server = struct {
         var pidbuf: [32]u8 = undefined;
         const pid = try std.fmt.bufPrint(&pidbuf, "{d}\n", .{c.getpid()});
         if (c.ftruncate(lock, 0) < 0 or c.write(lock, pid.ptr, pid.len) != pid.len) return error.SystemResources;
-        return .{ .gpa = gpa, .fd = fd, .dir = dir, .lock = lock, .path = path, .options = options, .handler = handler, .registry = registry, .owns_registry = owns_registry, .owner_path = owner_path, .bound_path = bound_path, .audit_log = log, .owns_audit = owns_audit, .saved_observer = saved_observer, .saved_downstream = saved_downstream };
+        return .{ .gpa = gpa, .fd = fd, .dir = dir, .lock = lock, .path = path, .options = options, .handler = handler, .registry = registry, .owns_registry = owns_registry, .owner_path = owner_path, .bound_path = bound_path, .audit_log = log, .owns_audit = owns_audit, .saved_observer = saved_observer, .saved_downstream = saved_downstream, .marked = marked };
     }
     /// Stop accepting and queue binary CLOSE frames. Continue polling until
     /// connections is empty to drain output (bounded by a ten-second deadline).
@@ -226,7 +232,8 @@ pub const Server = struct {
         _ = c.unlinkat(self.dir, @ptrCast(name.ptr), 0);
         _ = c.unlink(self.owner_path);
         self.gpa.free(self.owner_path);
-        if (self.options.subreaper) managers.unmark(self.dir);
+        if (self.marked) managers.unmark(self.dir);
+        self.marked = false;
         self.saveBound() catch {};
         self.registry.marker_dir = null;
         self.gpa.free(self.bound_path);
@@ -246,13 +253,21 @@ pub const Server = struct {
         self.* = undefined;
     }
     /// Results consumed by the standard doctor bundle.
-    pub fn grantDiagnostics(self: *const Server) struct { peerpidfd: enum { ok, warn }, subreaper: bool, owner_file: bool, audit_writable: bool, unknown_read_all: bool, isolation: bool, custom_lists: bool } {
+    /// Adds or removes this daemon's manager marker. Peers accepted afterwards
+    /// see the change; a connection keeps the identity it got at accept.
+    pub fn setManagerMarker(self: *Server, on: bool) !void {
+        if (on == self.marked) return;
+        if (on) try managers.mark(self.dir) else managers.unmark(self.dir);
+        self.marked = on;
+    }
+
+    pub fn grantDiagnostics(self: *const Server) struct { peerpidfd: enum { ok, warn }, subreaper: bool, manager_marker: bool, owner_file: bool, audit_writable: bool, unknown_read_all: bool, isolation: bool, custom_lists: bool } {
         const st = os.statAt(c.AT.FDCWD, self.owner_path, c.AT.SYMLINK_NOFOLLOW) catch null;
         var read_all = false;
         for (self.registry.policy.unknown) |entry| if (std.mem.eql(u8, entry.scope, "*")) {
             read_all = true;
         };
-        return .{ .peerpidfd = if (self.peerpidfd_available) .ok else .warn, .subreaper = self.options.subreaper, .owner_file = if (st) |s| s.uid == c.getuid() and s.mode & 0o777 == 0o600 and s.mode & c.S.IFMT == c.S.IFREG else false, .audit_writable = self.audit_log.writable, .unknown_read_all = read_all, .isolation = self.registry.isolated(), .custom_lists = !sameGrants(self.registry.policy.unknown, (grants.Policy{}).unknown) or !sameGrants(self.registry.policy.interactive, (grants.Policy{}).interactive) };
+        return .{ .peerpidfd = if (self.peerpidfd_available) .ok else .warn, .subreaper = self.options.subreaper, .manager_marker = self.marked, .owner_file = if (st) |s| s.uid == c.getuid() and s.mode & 0o777 == 0o600 and s.mode & c.S.IFMT == c.S.IFREG else false, .audit_writable = self.audit_log.writable, .unknown_read_all = read_all, .isolation = self.registry.isolated(), .custom_lists = !sameGrants(self.registry.policy.unknown, (grants.Policy{}).unknown) or !sameGrants(self.registry.policy.interactive, (grants.Policy{}).interactive) };
     }
     fn sameGrants(x: []const grants.Grant, y: []const grants.Grant) bool {
         if (x.len != y.len) return false;
