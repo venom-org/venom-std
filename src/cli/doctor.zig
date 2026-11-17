@@ -161,6 +161,12 @@ pub const ServerCheck = struct {
             try r.add("grants.isolation", .warn, "isolation is off, so grants.unknown and grants.interactive are not used; turn isolation on for them to apply", try r.print("{s}=@owner {s} config set --key grants.isolation --value true", .{ env, r.tool }))
         else
             try r.add("grants.isolation", .ok, "isolation is off: this user's processes may read, write and spawn, like tmux; turn it on when agents run here", try r.print("{s}=@owner {s} config set --key grants.isolation --value true", .{ env, r.tool }));
+        if (d.subreaper) {
+            if (d.manager_marker)
+                try r.add("grants.manager_marker", .ok, "marked as a process manager: other venom daemons refuse their owner token to processes it starts", try r.command("ls -l -- {s}", std.fs.path.dirname(self.server.owner_path) orelse "."))
+            else
+                try r.add("grants.manager_marker", .ok, "not marked as a process manager: to other venom daemons, processes it starts count as the user's terminal", try r.command("ls -l -- {s}", std.fs.path.dirname(self.server.owner_path) orelse "."));
+        }
         if (d.peerpidfd == .ok)
             try r.add("grants.peer_attribution", .ok, "peer process attribution uses pidfds", "uname -sr")
         else
